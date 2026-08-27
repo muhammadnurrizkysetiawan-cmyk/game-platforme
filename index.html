@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Adventure Jump</title>
+
+<style>
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  overflow: hidden;
+  background: #111;
+  touch-action: none;
+  font-family: Arial, sans-serif;
+}
+
+canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+.controls {
+  position: fixed;
+  bottom: 25px;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 25px;
+  pointer-events: none;
+}
+
+.left-buttons {
+  display: flex;
+  gap: 15px;
+}
+
+button {
+  width: 65px;
+  height: 65px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255,255,255,.35);
+  color: white;
+  font-size: 28px;
+  font-weight: bold;
+  pointer-events: auto;
+  user-select: none;
+}
+
+button:active {
+  background: rgba(255,255,255,.6);
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="game"></canvas>
+
+<div class="controls">
+  <div class="left-buttons">
+    <button id="left">◀</button>
+    <button id="right">▶</button>
+  </div>
+
+  <button id="jump">▲</button>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+canvas.width = 1000;
+canvas.height = 600;
+
+let cameraX = 0;
+
+const player = {
+  x: 100,
+  y: 400,
+  w: 40,
+  h: 55,
+  vx: 0,
+  vy: 0,
+  speed: 5,
+  jump: 13,
+  grounded: false
+};
+
+const keys = {
+  left: false,
+  right: false
+};
+
+const platforms = [
+  {x:0, y:520, w:1000, h:80},
+  {x:1100, y:520, w:900, h:80},
+  {x:2100, y:520, w:1000, h:80},
+
+  {x:300, y:420, w:150, h:25},
+  {x:600, y:350, w:150, h:25},
+  {x:850, y:420, w:150, h:25},
+
+  {x:1250, y:400, w:160, h:25},
+  {x:1500, y:330, w:160, h:25},
+  {x:1750, y:420, w:160, h:25},
+
+  {x:2200, y:400, w:150, h:25},
+  {x:2500, y:330, w:150, h:25},
+  {x:2750, y:400, w:150, h:25}
+];
+
+const coins = [
+  {x:350,y:380},
+  {x:650,y:310},
+  {x:900,y:380},
+  {x:1300,y:360},
+  {x:1550,y:290},
+  {x:1800,y:380},
+  {x:2250,y:360},
+  {x:2550,y:290},
+  {x:2800,y:360}
+];
+
+const enemies = [
+  {x:500,y:475,w:40,h:45,vx:2},
+  {x:1400,y:475,w:40,h:45,vx:2},
+  {x:2300,y:475,w:40,h:45,vx:2}
+];
+
+let score = 0;
+let lives = 3;
+let won = false;
+
+function resetPlayer() {
+  player.x = 100;
+  player.y = 400;
+  player.vx = 0;
+  player.vy = 0;
+}
+
+function jump() {
+  if (player.grounded && !won) {
+    player.vy = -player.jump;
+    player.grounded = false;
+  }
+}
+
+function collision(a,b) {
+  return (
+    a.x < b.x + b.w &&
+    a.x + a.w > b.x &&
+    a.y < b.y + b.h &&
+    a.y + a.h > b.y
+  );
+}
+
+function update() {
+  if (won) return;
+
+  // Gerakan
+  if (keys.left) player.vx = -player.speed;
+  else if (keys.right) player.vx = player.speed;
+  else player.vx *= 0.8;
+
+  player.vy += 0.6;
+
+  player.x += player.vx;
+  player.y += player.vy;
+
+  player.grounded = false;
+
+  // Platform
+  for (const p of platforms) {
+    if (
+      player.x + player.w > p.x &&
+      player.x < p.x + p.w &&
+      player.y + player.h <= p.y + 15 &&
+      player.y + player.h + player.vy >= p.y
+    ) {
+      player.y = p.y - player.h;
+      player.vy = 0;
+      player.grounded = true;
+    }
+  }
+
+  // Koin
+  for (let i = coins.length - 1; i >= 0; i--) {
+    const c = coins[i];
+
+    const coinBox = {
+      x:c.x,
+      y:c.y,
+      w:25,
+      h:25
+    };
+
+    if (collision(player, coinBox)) {
+      coins.splice(i,1);
+      score += 10;
+    }
+  }
+
+  // Musuh
+  for (const e of enemies) {
+    e.x += e.vx;
+
+    if (e.x < 0 || e.x > 3000) {
+      e.vx *= -1;
+    }
+
+    if (collision(player,e)) {
+
+      // Jika menginjak musuh
+      if (player.vy > 0 && player.y + player.h < e.y + 25) {
+        e.y = 1000;
+        player.vy = -9;
+        score += 20;
+      } else {
+        lives--;
+
+        if (lives <= 0) {
+          lives = 3;
+          score = 0;
+          location.reload();
+        }
+
+        resetPlayer();
+      }
+    }
+  }
+
+  // Jatuh
+  if (player.y > 700) {
+    lives--;
+
+    if (lives <= 0) {
+      location.reload();
+    }
+
+    resetPlayer();
+  }
+
+  // Finish
+  if (player.x > 2950) {
+    won = true;
+  }
+
+  // Kamera mengikuti pemain
+  cameraX = player.x - 300;
+
+  if (cameraX < 0) cameraX = 0;
+  if (cameraX > 2100) cameraX = 2100;
+}
+
+function drawBackground() {
+  // Langit
+  ctx.fillStyle = "#75cfff";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // Matahari
+  ctx.fillStyle = "#ffd93d";
+  ctx.beginPath();
+  ctx.arc(800,100,45,0,Math.PI*2);
+  ctx.fill();
+
+  // Gunung
+  ctx.fillStyle = "#7bc47f";
+
+  for (let x = -cameraX % 500 - 500; x < 1500; x += 500) {
+    ctx.beginPath();
+    ctx.moveTo(x,520);
+    ctx.lineTo(x+250,230);
+    ctx.lineTo(x+500,520);
+    ctx.fill();
+  }
+}
+
+function draw() {
+  drawBackground();
+
+  ctx.save();
+  ctx.translate(-cameraX,0);
+
+  // Platform
+  for (const p of platforms) {
+    ctx.fillStyle = "#8b5a2b";
+    ctx.fillRect(p.x,p.y,p.w,p.h);
+
+    ctx.fillStyle = "#39a852";
+    ctx.fillRect(p.x,p.y,p.w,12);
+  }
+
+  // Koin
+  for (const c of coins) {
+    ctx.fillStyle = "#ffd700";
+    ctx.beginPath();
+    ctx.arc(c.x+12,c.y+12,12,0,Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = "#fff3a0";
+    ctx.beginPath();
+    ctx.arc(c.x+8,c.y+8,4,0,Math.PI*2);
+    ctx.fill();
+  }
+
+  // Musuh
+  for (const e of enemies) {
+    if (e.y > 700) continue;
+
+    ctx.fillStyle = "#d94b4b";
+    ctx.fillRect(e.x,e.y,e.w,e.h);
+
+    ctx.fillStyle = "white";
+    ctx.fillRect(e.x+7,e.y+8,8,8);
+    ctx.fillRect(e.x+25,e.y+8,8,8);
+
+    ctx.fillStyle = "black";
+    ctx.fillRect(e.x+10,e.y+10,4,4);
+    ctx.fillRect(e.x+28,e.y+10,4,4);
+  }
+
+  // Finish
+  ctx.fillStyle = "#222";
+  ctx.fillRect(2950,300,10,220);
+
+  ctx.fillStyle = "#ff4444";
+  ctx.beginPath();
+  ctx.moveTo(2960,300);
+  ctx.lineTo(3060,330);
+  ctx.lineTo(2960,360);
+  ctx.fill();
+
+  // Player
+  ctx.fillStyle = "#3b55ff";
+  ctx.fillRect(player.x,player.y,player.w,player.h);
+
+  // Kepala
+  ctx.fillStyle = "#ffd0a0";
+  ctx.fillRect(player.x+7,player.y-15,26,22);
+
+  // Mata
+  ctx.fillStyle = "black";
+  ctx.fillRect(player.x+13,player.y-8,4,4);
+  ctx.fillRect(player.x+25,player.y-8,4,4);
+
+  ctx.restore();
+
+  // UI
+  ctx.fillStyle = "white";
+  ctx.font = "24px Arial";
+  ctx.fillText("⭐ Score: " + score,20,35);
+  ctx.fillText("❤️ Nyawa: " + lives,20,65);
+
+  if (won) {
+    ctx.fillStyle = "rgba(0,0,0,.7)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    ctx.fillStyle = "white";
+    ctx.textAlign = "center";
+    ctx.font = "50px Arial";
+    ctx.fillText("🎉 MENANG!",canvas.width/2,260);
+
+    ctx.font = "25px Arial";
+    ctx.fillText("Kamu berhasil sampai finish!",canvas.width/2,310);
+
+    ctx.textAlign = "left";
+  }
+}
+
+function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+function holdButton(button, action) {
+  button.addEventListener("touchstart", e => {
+    e.preventDefault();
+    action(true);
+  });
+
+  button.addEventListener("touchend", e => {
+    e.preventDefault();
+    action(false);
+  });
+
+  button.addEventListener("mousedown", () => action(true));
+  button.addEventListener("mouseup", () => action(false));
+  button.addEventListener("mouseleave", () => action(false));
+}
+
+holdButton(
+  document.getElementById("left"),
+  value => keys.left = value
+);
+
+holdButton(
+  document.getElementById("right"),
+  value => keys.right = value
+);
+
+document.getElementById("jump").addEventListener("touchstart", e => {
+  e.preventDefault();
+  jump();
+});
+
+document.getElementById("jump").addEventListener("mousedown", jump);
+
+// Keyboard untuk testing
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowLeft") keys.left = true;
+  if (e.key === "ArrowRight") keys.right = true;
+  if (e.key === "ArrowUp" || e.key === " ") jump();
+});
+
+document.addEventListener("keyup", e => {
+  if (e.key === "ArrowLeft") keys.left = false;
+  if (e.key === "ArrowRight") keys.right = false;
+});
+
+gameLoop();
+</script>
+
+</body>
+  </html>
